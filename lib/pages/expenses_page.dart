@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
+import '../utils/constants.dart';
 import '../widgets/date_picker.dart';
 import '../widgets/text_input.dart';
 import '../widgets/custom_button.dart';
@@ -30,48 +30,51 @@ class _ExpensesPageState extends State<ExpensesPage> {
     'KT',
   ];
   final List<String> _selectedMembers = [];
+  final String _type = 'expense';
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   void _addExpense() async {
-  if (_formKey.currentState?.validate() ?? false) {
-    final expenseData = {
-      'date': _dateController.text,
-      'amount': _amountController.text,
-      'remark': _remarkController.text,
-      'members': _selectedMembers,
-    };
+    if (_formKey.currentState?.validate() ?? false) {
+      final expenseData = {
+        'date': _dateController.text,
+        'amount': _amountController.text,
+        'remark': _remarkController.text,
+        'type': _type,
+        'members': _selectedMembers,
+      };
 
-    const String webAppUrl = "https://script.google.com/macros/s/AKfycbzWNRDrnQhgOCeX8TVSn6iP4NT2BgYFy6htw1y0ci-DFWf-A2dUZSVEx15PWACI8bd5/exec"; // Replace with your Web App URL
+      const String webAppUrl = kWebAppUrl;
 
-    try {
-      final response = await http.post(
-        Uri.parse(webAppUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(expenseData), // jsonEncode works after importing dart:convert
-      );
-
-      if (response.statusCode == 200) {
-        print("Expense data sent successfully: ${response.body}");
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Expense added successfully!")),
+      try {
+        final response = await http.post(
+          Uri.parse(webAppUrl),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(
+            expenseData,
+          ), // jsonEncode works after importing dart:convert
         );
-      } else {
-        print("Failed to send expense data: ${response.statusCode}");
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to add expense.")),
-        );
+
+        if (response.statusCode == 200) {
+          print("Expense data sent successfully: ${response.body}");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Expense added successfully!")),
+          );
+        } else {
+          print("Failed to send expense data: ${response.statusCode}");
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text("Failed to add expense.")));
+        }
+      } catch (e) {
+        print("Error occurred: $e");
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("An error occurred.")));
       }
-    } catch (e) {
-      print("Error occurred: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("An error occurred.")),
-      );
+      _clearFields();
     }
   }
-}
-
-
 
   void _clearFields() {
     _amountController.clear();
@@ -105,28 +108,20 @@ class _ExpensesPageState extends State<ExpensesPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                DatePickerWidget(
-                  controller: _dateController,
-                  label: 'Date',
-                ),
+                DatePickerWidget(controller: _dateController, label: 'Date'),
                 TextInputWidget(
                   controller: _amountController,
                   label: "Amount",
                   keyboardType: TextInputType.number,
                 ),
-                TextInputWidget(
-                  controller: _remarkController,
-                  label: "Remark",
-                ),
+
                 MemberSelectWidget(
                   members: _members,
                   selectedMembers: _selectedMembers,
                 ),
+                TextInputWidget(controller: _remarkController, label: "Remark"),
                 const SizedBox(height: 20),
-                CustomButton(
-                  text: 'Add Expense',
-                  onPressed: _addExpense,
-                ),
+                CustomButton(text: 'Add Expense', onPressed: _addExpense),
                 const SizedBox(height: 10),
                 CustomButton(
                   text: 'Clear Fields',

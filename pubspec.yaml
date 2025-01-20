@@ -58,7 +58,7 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
   assets:
-    - assets/boarding-expenses-project-faf0effc839f.json
+    - assets/boarding-expenses-project-348051445b21.json
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+// Web App URL
+const String kWebAppUrl = 'https://script.google.com/macros/s/AKfycbzWNRDrnQhgOCeX8TVSn6iP4NT2BgYFy6htw1y0ci-DFWf-A2dUZSVEx15PWACI8bd5/exec';
+
 // Main Color Palette
 const Color kMainColor = Color.fromARGB(255, 101, 100, 100);
 const Color kSuccessColor = Color.fromARGB(255, 91, 167, 4);
