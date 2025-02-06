@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../widgets/date_picker.dart';
 import '../widgets/text_input.dart';
 import '../widgets/custom_button.dart';
@@ -32,17 +34,42 @@ class _IncomePageState extends State<IncomePage> {
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  void _addIncome() {
+  void _addIncome() async {
     if (_formKey.currentState?.validate() ?? false) {
-      // Submit income logic
       final incomeData = {
         'date': _dateController.text,
         'amount': _amountController.text,
         'remark': _remarkController.text,
         'members': _selectedMembers,
       };
-      // Add the logic to save or process the data
-      print(incomeData);
+
+      const String webAppUrl = kWebAppUrl;
+
+      try {
+        final response = await http.post(
+          Uri.parse("$webAppUrl?function=addIncome"), // Specify the function
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(incomeData),
+        );
+
+        if (response.statusCode == 200) {
+          print("Income data sent successfully: ${response.body}");
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text("Income added successfully!")));
+        } else {
+          print("Failed to send income data: ${response.statusCode}");
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text("Failed to add income.")));
+        }
+      } catch (e) {
+        print("Error occurred: $e");
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("An error occurred.")));
+      }
+      _clearFields();
     }
   }
 

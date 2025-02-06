@@ -3,39 +3,41 @@ import '../utils/constants.dart';
 
 class CustomButton extends StatelessWidget {
   final String text;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final Color backgroundColor;
   final Color textColor;
   final double height;
   final double borderRadius;
+  final bool disabled; // ✅ New property for disabling the button
 
   const CustomButton({
     Key? key,
     required this.text,
-    required this.onPressed,
-    this.backgroundColor = kPrimaryColor, // Default blue background
-    this.textColor = Colors.white, // Default black text
-    this.height = 45.0, // Default button height
-    this.borderRadius = 14.0, // Default border radius
+    this.onPressed,
+    this.backgroundColor = kPrimaryColor,
+    this.textColor = Colors.white,
+    this.height = 45.0,
+    this.borderRadius = 14.0,
+    this.disabled = false, // ✅ Default to false (enabled)
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: double.infinity, // Full width
-      height: height, // Set height from the parameter
+      width: double.infinity,
+      height: height,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: backgroundColor, // Corrected background color
+          backgroundColor: disabled ? Colors.grey : backgroundColor, // ✅ Grey if disabled
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(borderRadius), // Border radius
+            borderRadius: BorderRadius.circular(borderRadius),
           ),
         ),
-        onPressed: onPressed,
+        onPressed: disabled ? null : onPressed, // ✅ Disable button when needed
         child: Text(
           text,
           style: TextStyle(
-            color: textColor, // Text color
+            color: textColor,
             fontSize: 14.0,
           ),
         ),
