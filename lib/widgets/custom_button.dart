@@ -9,6 +9,7 @@ class CustomButton extends StatelessWidget {
   final double height;
   final double borderRadius;
   final bool disabled; // ✅ New property for disabling the button
+  final bool isLoading;
 
   const CustomButton({
     Key? key,
@@ -19,6 +20,7 @@ class CustomButton extends StatelessWidget {
     this.height = 45.0,
     this.borderRadius = 14.0,
     this.disabled = false, // ✅ Default to false (enabled)
+    this.isLoading = false,
   }) : super(key: key);
 
   @override
@@ -28,19 +30,27 @@ class CustomButton extends StatelessWidget {
       height: height,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: disabled ? Colors.grey : backgroundColor, // ✅ Grey if disabled
+          backgroundColor:
+              disabled ? Colors.grey : backgroundColor, // ✅ Grey if disabled
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadius),
           ),
         ),
         onPressed: disabled ? null : onPressed, // ✅ Disable button when needed
-        child: Text(
-          text,
-          style: TextStyle(
-            color: textColor,
-            fontSize: 14.0,
-          ),
-        ),
+        child:
+            isLoading
+                ? SizedBox(
+                  width: 20, // Smaller width
+                  height: 20, // Smaller height
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2, // Thinner stroke width
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+                : Text(
+                  text,
+                  style: TextStyle(color: textColor, fontSize: 14.0),
+                ),
       ),
     );
   }

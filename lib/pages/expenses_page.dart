@@ -5,10 +5,15 @@ import '../widgets/date_picker.dart';
 import '../widgets/text_input.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/member_select.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // Import dotenv
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 class ExpensesPage extends StatefulWidget {
-  const ExpensesPage({Key? key}) : super(key: key);
+  final Function?
+  refreshBalance; // Nullable callback function to refresh balance
+
+  const ExpensesPage({Key? key, this.refreshBalance}) : super(key: key);
 
   @override
   _ExpensesPageState createState() => _ExpensesPageState();
@@ -19,100 +24,179 @@ class _ExpensesPageState extends State<ExpensesPage> {
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _remarkController = TextEditingController();
 
-  List<String> _members = []; // Users will be populated here from the backend
-  final List<String> _selectedMembers = [];
+  List<Map<String, String>> _members = []; // Stores user IDs & names
+  List<String> _selectedMemberIds = []; // Stores selected user IDs
   final String _type = 'expense';
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
-  bool _isLoading = true; // To show loading spinner while fetching users
+  bool _isLoading = true; // Show loading while fetching users
+  bool _isLoadingTransaction = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchUsers(); // Fetch users when the screen is loaded
+    _fetchUsers(); // Fetch users when screen loads
   }
 
-  // Fetch users from the backend
+  /// Fetch users from backend
   Future<void> _fetchUsers() async {
-    final String webAppUrl = dotenv.env['API_BASE_URL']!; // Fetch URL from .env
+    final String apiUrl = dotenv.env['API_BASE_URL']!; // Get API from .env
 
     try {
       final response = await http.get(
-        Uri.parse('$webAppUrl/allUsers'), // API endpoint to fetch users
+        Uri.parse('$apiUrl/allUsers'), // API endpoint
         headers: {'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200) {
-        final List users = jsonDecode(response.body);
+        final List<dynamic> users = jsonDecode(response.body);
 
         setState(() {
-          _members = users.map((user) => user['name'] as String).toList(); // Populate _members with user names
-          _isLoading = false; // Hide loading spinner
-        });
-      } else {
-        setState(() {
+          _members =
+              users
+                  .where(
+                    (user) => user is Map<String, dynamic>,
+                  ) // Ensure it's a valid Map
+                  .map<Map<String, String>>(
+                    (user) => {
+                      "id": user['_id'].toString(), // Convert ID to String
+                      "name": user['name'].toString(), // Convert Name to String
+                    },
+                  )
+                  .toList();
           _isLoading = false;
         });
-        print("❌ Error fetching users: ${response.statusCode}");
+      } else {
+        _handleError("Error fetching users", response);
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      print("❌ Error occurred while fetching users: $e");
+      _handleError("Exception while fetching users", e);
     }
   }
 
-  // Add expense to the database
-  void _addExpense() async {
-    if (_formKey.currentState?.validate() ?? false) {
-      final expenseData = {
-        'date': _dateController.text,
-        'amount': _amountController.text,
-        'remark': _remarkController.text,
-        'type': _type,
-        'members': _selectedMembers,
+  /// Add transaction to backend
+  Future<void> _addTransaction() async {
+    setState(() {
+      _isLoadingTransaction = true;
+    });
+    if (!_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoadingTransaction = false;
+      });
+      return;
+    }
+
+    if (_selectedMemberIds.isEmpty) {
+      setState(() {
+        _isLoadingTransaction = false;
+      });
+      _showSnackbar("❌ Please select at least one member.");
+      return;
+    }
+
+    final String apiUrl = dotenv.env['API_BASE_URL']!;
+    final String endpoint = '$apiUrl/addTransaction';
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? token = prefs.getString('auth_token');
+
+      if (token == null) {
+        setState(() {
+          _isLoadingTransaction = false;
+        });
+        _showSnackbar("❌ No auth token found. Please log in again.");
+        return;
+      }
+
+      // ✅ Ensure the date is in `YYYY-MM-DD` format
+      String formattedDate = DateFormat(
+        "yyyy-MM-dd",
+      ).format(DateTime.parse(_dateController.text));
+
+      if (_selectedMemberIds.isEmpty) {
+        setState(() {
+          _isLoadingTransaction = false;
+        });
+        _showSnackbar("❌ Please select at least one member.");
+        return;
+      }
+
+      final transactionData = {
+        "type": _type,
+        "date": formattedDate, // ✅ Correct format (YYYY-MM-DD)
+        "amount":
+            double.tryParse(_amountController.text) ??
+            0.0, // Ensure `amount` is a number
+        "selectedMembers":
+            _selectedMemberIds, // Ensure it's an array of user IDs
+        "remark":
+            _remarkController.text.trim().isEmpty
+                ? "No remark"
+                : _remarkController.text.trim(), // Handle empty remark
       };
 
-      final String webAppUrl = dotenv.env['API_BASE_URL']!; // Fetch URL from .env
+      print("📤 Sending Transaction Data: ${jsonEncode(transactionData)}");
 
-      try {
-        final response = await http.post(
-          Uri.parse(webAppUrl),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(
-            expenseData,
-          ),
-        );
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json', // Ensure correct headers
+          'x-auth-token': token,
+        },
+        body: jsonEncode(transactionData),
+      );
 
-        if (response.statusCode == 200) {
-          print("✅ Expense data sent successfully: ${response.body}");
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Expense added successfully!")),
-          );
-        } else {
-          print("❌ Failed to send expense data: ${response.statusCode}");
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("Failed to add expense.")));
+      print("✅ API Response Code: ${response.statusCode}");
+      print("✅ API Response Body: ${response.body}");
+
+      if (response.statusCode == 201) {
+        _showSnackbar("✅ Transaction added successfully!");
+        if (widget.refreshBalance != null) {
+          print("✅ Triggering refreshBalance to update the total balance.");
+          widget
+              .refreshBalance!(); // Call the callback to refresh balance if not null
         }
-      } catch (e) {
-        print("Error occurred: $e");
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("An error occurred.")));
+        _clearFields();
+      } else {
+        _showSnackbar("❌ Failed to add transaction: ${response.body}");
       }
-      _clearFields();
+      setState(() {
+        _isLoadingTransaction = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingTransaction = false;
+      });
+      print("❌ Exception occurred: $e");
+      _showSnackbar("❌ An error occurred. Please try again.");
     }
   }
 
+  /// Clears input fields after submission
   void _clearFields() {
     _amountController.clear();
     _remarkController.clear();
     setState(() {
-      _selectedMembers.clear();
+      _selectedMemberIds.clear();
     });
+  }
+
+  /// Handles API errors and prints logs
+  void _handleError(String message, dynamic error) {
+    print("❌ $message: $error");
+    _showSnackbar("❌ $message");
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  /// Shows snackbar message
+  void _showSnackbar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -147,19 +231,39 @@ class _ExpensesPageState extends State<ExpensesPage> {
                 ),
                 TextInputWidget(controller: _remarkController, label: "Remark"),
 
-                // Show a loading spinner while fetching users
-                if (_isLoading) 
-                  const Center(child: CircularProgressIndicator()),
+                if (_isLoading)
+                  const Center(
+                    child: SizedBox(
+                      width: 30,
+                      height: 30,
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    ),
+                  ),
 
-                // Display member selection only after fetching users
                 if (!_isLoading)
                   MemberSelectWidget(
-                    members: _members,
-                    selectedMembers: _selectedMembers,
+                    members: _members.map((user) => user["name"]!).toList(),
+                    selectedMembers: _selectedMemberIds,
+                    onSelectionChanged: (selectedNames) {
+                      setState(() {
+                        _selectedMemberIds =
+                            _members
+                                .where(
+                                  (user) =>
+                                      selectedNames.contains(user["name"]),
+                                )
+                                .map((user) => user["id"]!)
+                                .toList();
+                      });
+                    },
                   ),
 
                 const SizedBox(height: 20),
-                CustomButton(text: 'Add Expense', onPressed: _addExpense),
+                CustomButton(
+                  text: 'Add Expense',
+                  onPressed: _isLoading ? null : _addTransaction,
+                  isLoading: _isLoadingTransaction,
+                ),
                 const SizedBox(height: 10),
                 CustomButton(
                   text: 'Clear Fields',

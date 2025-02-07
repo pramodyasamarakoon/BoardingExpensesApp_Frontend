@@ -18,15 +18,10 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
-  double totalBalance = 0; // Store the balance
-  bool isLoading = true; // To show loading spinner while fetching balance
+  double totalBalance = 0;
+  bool isLoading = true;
 
-  final List<Widget> _pages = [
-    const ExpensesPage(),
-    const IncomePage(),
-    const DashboardPage(),
-    const UsersPage(), // Only visible to Admin
-  ];
+  late List<Widget> _pages;
 
   void _onItemTapped(int index) {
     setState(() {
@@ -37,41 +32,31 @@ class _MainScreenState extends State<MainScreen> {
   // Check if the user is an admin
   Future<bool> _isAdmin() async {
     final prefs = await SharedPreferences.getInstance();
-    String? role = prefs.getString(
-      'role',
-    ); // Assume 'role' is stored as 'admin' or 'user'
+    String? role = prefs.getString('role');
     return role == 'admin';
   }
 
   // Fetch the final balance from the backend
-  Future<void> _fetchBalance() async {
-    final String webAppUrl =
-        dotenv.env['API_BASE_URL']!; // Load API base URL from .env
-    final String token =
-        await _getAuthToken(); // Get the auth token to pass in header
-
-    print("✅ API URL: $webAppUrl");
-    print("✅ Auth Token: $token");
+  Future<void> _refreshBalance() async {
+    final String webAppUrl = dotenv.env['API_BASE_URL']!;
+    final String token = await _getAuthToken();
 
     try {
       final response = await http.get(
-        Uri.parse('$webAppUrl/total-balance'), // API endpoint to fetch balance
+        Uri.parse('$webAppUrl/total-balance'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token', // Pass the token in the header
+          'Authorization': 'Bearer $token',
         },
       );
-
-      print("✅ Response body: ${response.body}"); // Debugging
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
           totalBalance = (data['totalBalance'] as num).toDouble();
-          isLoading = false; // Hide loading spinner
+          isLoading = false;
         });
       } else {
-        // Handle any errors from the API
         setState(() {
           isLoading = false;
         });
@@ -81,49 +66,56 @@ class _MainScreenState extends State<MainScreen> {
       setState(() {
         isLoading = false;
       });
-      print("❌ Error occurred while fetching balance: $e");
+      print("❌ Error fetching balance: $e");
     }
   }
 
   // Function to get authentication token
   Future<String> _getAuthToken() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('auth_token') ??
-        ''; // Get token from SharedPreferences
+    return prefs.getString('auth_token') ?? '';
   }
 
   @override
   void initState() {
     super.initState();
-    _fetchBalance(); // Fetch balance when the screen is loaded
+    _refreshBalance(); // Fetch balance when the screen is loaded
+
+    _pages = [
+      ExpensesPage(refreshBalance: _refreshBalance),
+      const IncomePage(),
+      const DashboardPage(),
+      const UsersPage(),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Boarding Expenses',
-          style: const TextStyle(fontSize: 14),
-        ),
+        title: const Text('Boarding Expenses', style: TextStyle(fontSize: 14)),
         actions: [
-          // Show total balance on the right
           Padding(
             padding: const EdgeInsets.all(8.0),
             child:
                 isLoading
-                    ? const CircularProgressIndicator() // Show loading spinner while fetching balance
-                    : Text(
-                      'Rs. $totalBalance',
-                      style: const TextStyle(
-                        fontSize: 26.0, // Increased font size of the balance
-                        fontWeight:
-                            FontWeight.bold, // Make the balance text bold
-                        color: Colors.green, // Make the balance text green
+                    ? const SizedBox(
+                      width: 30,
+                      height: 30,
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    )
+                    : GestureDetector(
+                      onTap: _refreshBalance, // Reload the balance on tap
+                      child: Text(
+                        'Rs. $totalBalance',
+                        style: const TextStyle(
+                          fontSize: 26.0,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
                       ),
                     ),
           ),
-          // Popup menu for settings (with log out)
           PopupMenuButton<int>(
             onSelected: (value) {
               if (value == 1) {
@@ -137,12 +129,16 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ],
       ),
-      body: _pages[_selectedIndex],
+      body: _pages[_selectedIndex], // Use _pages here
       bottomNavigationBar: FutureBuilder<bool>(
         future: _isAdmin(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const CircularProgressIndicator();
+            return const SizedBox(
+              width: 30,
+              height: 30,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            );
           }
 
           return BottomNavigationBar(
@@ -161,7 +157,7 @@ class _MainScreenState extends State<MainScreen> {
                 icon: Icon(Icons.dashboard_rounded),
                 label: 'Dashboard',
               ),
-              if (snapshot.data == true) // Show Users only for Admin
+              if (snapshot.data == true)
                 const BottomNavigationBarItem(
                   icon: Icon(Icons.supervised_user_circle_rounded),
                   label: 'Users',
@@ -176,8 +172,8 @@ class _MainScreenState extends State<MainScreen> {
   // Log out function
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token'); // Remove token to log out
-    await prefs.remove('role'); // Optionally remove role as well
+    await prefs.remove('auth_token');
+    await prefs.remove('role');
 
     // Redirect to SignInPage
     Navigator.pushReplacement(
