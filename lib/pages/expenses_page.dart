@@ -38,39 +38,39 @@ class _ExpensesPageState extends State<ExpensesPage> {
     _fetchUsers(); // Fetch users when screen loads
   }
 
-  /// Fetch users from backend
+  /// Fetch users from storage
   Future<void> _fetchUsers() async {
-    final String apiUrl = dotenv.env['API_BASE_URL']!; // Get API from .env
+    final prefs = await SharedPreferences.getInstance();
+    String? userData = prefs.getString(
+      'users',
+    ); // Get users data from SharedPreferences
 
-    try {
-      final response = await http.get(
-        Uri.parse('$apiUrl/allUsers'), // API endpoint
-        headers: {'Content-Type': 'application/json'},
-      );
+    if (userData != null) {
+      // Decode the JSON data
+      final List<dynamic> users = jsonDecode(userData);
 
-      if (response.statusCode == 200) {
-        final List<dynamic> users = jsonDecode(response.body);
-
-        setState(() {
-          _members =
-              users
-                  .where(
-                    (user) => user is Map<String, dynamic>,
-                  ) // Ensure it's a valid Map
-                  .map<Map<String, String>>(
-                    (user) => {
-                      "id": user['_id'].toString(), // Convert ID to String
-                      "name": user['name'].toString(), // Convert Name to String
-                    },
-                  )
-                  .toList();
-          _isLoading = false;
-        });
-      } else {
-        _handleError("Error fetching users", response);
-      }
-    } catch (e) {
-      _handleError("Exception while fetching users", e);
+      setState(() {
+        // Map the decoded user data to the required format
+        _members =
+            users
+                .where(
+                  (user) => user is Map<String, dynamic>,
+                ) // Ensure it's a valid Map
+                .map<Map<String, String>>(
+                  (user) => {
+                    "id": user['_id'].toString(), // Convert ID to String
+                    "name": user['name'].toString(), // Convert Name to String
+                  },
+                )
+                .toList();
+        _isLoading = false; // Set loading to false once users are fetched
+      });
+    } else {
+      // Handle the case where user data is not found in SharedPreferences
+      setState(() {
+        _isLoading = false;
+      });
+      print("❌ User data not found in local storage.");
     }
   }
 

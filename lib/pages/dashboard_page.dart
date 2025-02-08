@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // For .env files to store API URLs
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({Key? key}) : super(key: key);
@@ -24,40 +25,45 @@ class _DashboardPageState extends State<DashboardPage> {
 
   // Fetch users from the backend
   Future<void> _fetchUsers() async {
-    final String apiUrl = dotenv.env['API_BASE_URL']!; // Get API URL from .env
+    final prefs = await SharedPreferences.getInstance();
+    String? userData = prefs.getString(
+      'users',
+    ); // Retrieve users' data from SharedPreferences
 
-    try {
-      final response = await http.get(
-        Uri.parse('$apiUrl/allUsers'), // API endpoint to fetch users
-        headers: {'Content-Type': 'application/json'},
-      );
+    if (userData != null) {
+      try {
+        // Decode the JSON data
+        final List<dynamic> usersData = jsonDecode(userData);
 
-      if (response.statusCode == 200) {
-        final List<dynamic> usersData = jsonDecode(response.body);
         setState(() {
           _users =
               usersData
-                  .where((user) => user is Map<String, dynamic>)
+                  .where(
+                    (user) => user is Map<String, dynamic>,
+                  ) // Ensure it's a valid Map
                   .map<Map<String, String>>(
                     (user) => {
-                      "id": user['_id'].toString(),
-                      "name": user['name'].toString(),
+                      "id": user['_id'].toString(), // Convert ID to String
+                      "name": user['name'].toString(), // Convert Name to String
                     },
                   )
                   .toList();
-          _isLoading = false; // Hide the loading spinner when data is fetched
+          _isLoading = false; // Hide the loading spinner once data is fetched
         });
-        _fetchDashboardData(); // After fetching users, get their dashboard data
-      } else {
+
+        // After fetching users, retrieve their dashboard data if necessary
+        _fetchDashboardData(); // Assuming you need to call this function
+      } catch (e) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Failed to load users.';
+          _errorMessage =
+              'Error decoding user data: $e'; // Error handling if JSON decoding fails
         });
       }
-    } catch (e) {
+    } else {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Error occurred while fetching users: $e';
+        _errorMessage = 'User data not found in local storage.';
       });
     }
   }
