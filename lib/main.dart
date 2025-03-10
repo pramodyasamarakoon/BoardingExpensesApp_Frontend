@@ -53,11 +53,16 @@ class _MyAppState extends State<MyApp> {
   // Fetch users from the API and store them in local storage
   Future<void> _fetchAndStoreUserData() async {
     final String apiUrl = dotenv.env['API_BASE_URL']!; // Get API URL from .env
+    final prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('auth_token');
 
     try {
       final response = await http.get(
-        Uri.parse('$apiUrl/allUsers'), // Fetch users API
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('$apiUrl/all'), // Fetch users API
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
 
       if (response.statusCode == 200) {

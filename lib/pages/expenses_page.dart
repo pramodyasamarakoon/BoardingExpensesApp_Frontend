@@ -95,11 +95,11 @@ class _ExpensesPageState extends State<ExpensesPage> {
     }
 
     final String apiUrl = dotenv.env['API_BASE_URL']!;
-    final String endpoint = '$apiUrl/addTransaction';
+    final String endpoint = '$apiUrl/transactions';
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final String? token = prefs.getString('auth_token');
+      final String? token = prefs.getString('token');
 
       if (token == null) {
         setState(() {
@@ -143,7 +143,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json', // Ensure correct headers
-          'x-auth-token': token,
+          'Authorization': 'Bearer $token',
         },
         body: jsonEncode(transactionData),
       );

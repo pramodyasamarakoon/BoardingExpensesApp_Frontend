@@ -71,21 +71,46 @@ class _DashboardPageState extends State<DashboardPage> {
   // Fetch dashboard data for each user and update their balance
   Future<void> _fetchDashboardData() async {
     final String apiUrl = dotenv.env['API_BASE_URL']!; // Get API URL from .env
+    final prefs = await SharedPreferences.getInstance();
+    final String? token = prefs.getString('token');
 
     for (var user in _users) {
       try {
         final response = await http.get(
-          Uri.parse(
-            '$apiUrl/dashboard/${user['id']}',
-          ), // API endpoint to fetch user dashboard data
-          headers: {'Content-Type': 'application/json'},
+          Uri.parse('$apiUrl/${user['id']}/dashboard'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
         );
 
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
+
+          double balance;
+
+          // Handling different types of `totalBalance` values from the backend
+          if (data['totalBalance'] is int) {
+            balance =
+                (data['totalBalance'] as int)
+                    .toDouble(); // Convert int to double
+          } else if (data['totalBalance'] is double) {
+            balance = data['totalBalance']; // Already a double
+          } else if (data['totalBalance'] is Map<String, dynamic> &&
+              data['totalBalance'].containsKey("\$numberDecimal")) {
+            balance = double.parse(
+              data['totalBalance']['\$numberDecimal'],
+            ); // Extract Decimal128 value
+          } else {
+            print(
+              "❌ Unexpected totalBalance format for user ${user['name']}: ${data['totalBalance']}",
+            );
+            continue; // Skip this user if the data format is wrong
+          }
+
+          // Update UI state with the user's balance
           setState(() {
-            // Update the balance for each user based on the API response
-            _userBalances[user['id']!] = data['totalBalance'] as double;
+            _userBalances[user['id']!] = balance;
           });
         } else {
           print(
@@ -117,30 +142,34 @@ class _DashboardPageState extends State<DashboardPage> {
                     final user = _users[index];
                     final balance = _userBalances[user['id']];
                     return Card(
-                      color: Colors.blueAccent,
+                      color: Colors.white, // Keeping card color as white
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                       elevation: 4,
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
-                        child: Column(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               user['name']!,
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w400,
                               ),
                             ),
-                            const SizedBox(height: 8),
                             if (balance != null)
                               Text(
-                                'Total Balance: Rs. $balance',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 16,
+                                'Rs. ${balance.toStringAsFixed(2)}', // Format balance to 2 decimal points
+                                style: TextStyle(
+                                  color:
+                                      balance < 0
+                                          ? Colors.redAccent
+                                          : Colors.green,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                           ],
